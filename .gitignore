@@ -1,0 +1,19 @@
+# Benchmark results (timestamped directories)
+go_benchmark_*/
+java_benchmark_*/
+
+# Java build artifacts
+java_benchmarks/target/
+java_benchmarks/dependency-reduced-pom.xml
+
+# Go build artifacts
+go_benchmarks/go.sum
+
+# IDE and editor files
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Logs
+*.log
