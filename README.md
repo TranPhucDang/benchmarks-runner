@@ -87,8 +87,6 @@ grep "Pause" java_benchmark_*/gc_*.log
 │   ├── pom.xml                       # Maven project configuration
 │   └── src/main/java/benchmark/
 │       └── CompleteBenchmarks.java   # Java JMH benchmark implementations
-└── .github/
-    └── copilot-instructions.md       # AI coding agent documentation
 
 # Generated directories (not committed):
 go_benchmark_<system>_<timestamp>/    # Go results
