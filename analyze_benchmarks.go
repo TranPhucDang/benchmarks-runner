@@ -24,6 +24,13 @@ type BenchmarkResult struct {
 	DebianValue     float64
 	IYAValue        float64
 	RHELValue       float64
+	// Additional metrics
+	DebianBytesPerOp  float64
+	IYABytesPerOp     float64
+	RHELBytesPerOp    float64
+	DebianAllocsPerOp float64
+	IYAAllocsPerOp    float64
+	RHELAllocsPerOp   float64
 }
 
 // TestStyle represents a benchmark test configuration
@@ -208,7 +215,12 @@ func parseNsOp(s string) float64 {
 
 // readBenchmarkFiles reads benchmark data from result directories
 func readBenchmarkFiles(dirs map[string]string, filename string) ([]BenchmarkResult, error) {
-	benchmarkData := make(map[string]map[string]float64) // benchmark -> OS -> value
+	type BenchmarkMetrics struct {
+		nsOp     float64
+		bytesOp  float64
+		allocsOp float64
+	}
+	benchmarkData := make(map[string]map[string]*BenchmarkMetrics) // benchmark -> OS -> metrics
 
 	for osName, dir := range dirs {
 		filePath := filepath.Join(dir, filename)
@@ -224,7 +236,7 @@ func readBenchmarkFiles(dirs map[string]string, filename string) ([]BenchmarkRes
 		for scanner.Scan() {
 			line := scanner.Text()
 
-			// Parse benchmark lines: BenchmarkName-4  iterations  ns/op  MB/s  ...
+			// Parse benchmark lines: BenchmarkName-4  iterations  ns/op  B/op  allocs/op
 			if strings.HasPrefix(line, "Benchmark") {
 				fields := strings.Fields(line)
 				if len(fields) < 3 {
@@ -234,16 +246,31 @@ func readBenchmarkFiles(dirs map[string]string, filename string) ([]BenchmarkRes
 				// Extract benchmark name (remove -4 suffix)
 				name := strings.TrimSuffix(fields[0], "-4")
 
+				metrics := &BenchmarkMetrics{}
+
 				// Parse ns/op value (3rd field)
-				value, err := strconv.ParseFloat(fields[2], 64)
-				if err != nil {
-					continue
+				if nsOp, err := strconv.ParseFloat(fields[2], 64); err == nil {
+					metrics.nsOp = nsOp
+				}
+
+				// Parse B/op value (5th field if exists)
+				if len(fields) >= 5 {
+					if bytesOp, err := strconv.ParseFloat(fields[4], 64); err == nil {
+						metrics.bytesOp = bytesOp
+					}
+				}
+
+				// Parse allocs/op value (7th field if exists)
+				if len(fields) >= 7 {
+					if allocsOp, err := strconv.ParseFloat(fields[6], 64); err == nil {
+						metrics.allocsOp = allocsOp
+					}
 				}
 
 				if benchmarkData[name] == nil {
-					benchmarkData[name] = make(map[string]float64)
+					benchmarkData[name] = make(map[string]*BenchmarkMetrics)
 				}
-				benchmarkData[name][osName] = value
+				benchmarkData[name][osName] = metrics
 			}
 		}
 
@@ -263,9 +290,16 @@ func readBenchmarkFiles(dirs map[string]string, filename string) ([]BenchmarkRes
 		result := BenchmarkResult{
 			Name:        name,
 			Metric:      "ns/op",
-			DebianValue: osData["Debian"],
-			IYAValue:    osData["IYA"],
-			RHELValue:   osData["RHEL"],
+			DebianValue: osData["Debian"].nsOp,
+			IYAValue:    osData["IYA"].nsOp,
+			RHELValue:   osData["RHEL"].nsOp,
+			// Additional metrics
+			DebianBytesPerOp:  osData["Debian"].bytesOp,
+			IYABytesPerOp:     osData["IYA"].bytesOp,
+			RHELBytesPerOp:    osData["RHEL"].bytesOp,
+			DebianAllocsPerOp: osData["Debian"].allocsOp,
+			IYAAllocsPerOp:    osData["IYA"].allocsOp,
+			RHELAllocsPerOp:   osData["RHEL"].allocsOp,
 		}
 
 		// Format string values
@@ -656,13 +690,20 @@ func exportDetailedCSVFiles(allBenchmarks map[string][]BenchmarkResult) {
 		// Write header
 		header := []string{
 			"Benchmark Name",
-			"Metric",
 			"Debian 11 (ns/op)",
 			"IYA Linux 0.5.0 (ns/op)",
 			"RHEL 10.0 (ns/op)",
-			"Best Performance",
+			"Best Performance (ns/op)",
 			"IYA vs Debian Speedup",
 			"IYA vs RHEL Speedup",
+			"Debian 11 (B/op)",
+			"IYA Linux 0.5.0 (B/op)",
+			"RHEL 10.0 (B/op)",
+			"Best Performance (B/op)",
+			"Debian 11 (allocs/op)",
+			"IYA Linux 0.5.0 (allocs/op)",
+			"RHEL 10.0 (allocs/op)",
+			"Best Performance (allocs/op)",
 		}
 		writer.Write(header)
 
@@ -684,15 +725,44 @@ func exportDetailedCSVFiles(allBenchmarks map[string][]BenchmarkResult) {
 				speedupVsRHEL = "N/A"
 			}
 
+			// Determine best for B/op (lowest is best)
+			bestBytes := "--"
+			minBytes := b.DebianBytesPerOp
+			if b.IYABytesPerOp < minBytes {
+				bestBytes = "IYA"
+				minBytes = b.IYABytesPerOp
+			}
+			if b.RHELBytesPerOp < minBytes {
+				bestBytes = "RHEL"
+			}
+
+			// Determine best for allocs/op (lowest is best)
+			bestAllocs := "--"
+			minAllocs := b.DebianAllocsPerOp
+			if b.IYAAllocsPerOp < minAllocs {
+				bestAllocs = "IYA"
+				minAllocs = b.IYAAllocsPerOp
+			}
+			if b.RHELAllocsPerOp < minAllocs {
+				bestAllocs = "RHEL"
+			}
+
 			row := []string{
 				b.Name,
-				b.Metric,
 				fmt.Sprintf("%.2f", b.DebianValue),
 				fmt.Sprintf("%.2f", b.IYAValue),
 				fmt.Sprintf("%.2f", b.RHELValue),
 				b.BestPerformance,
 				speedupVsDebian,
 				speedupVsRHEL,
+				fmt.Sprintf("%.0f", b.DebianBytesPerOp),
+				fmt.Sprintf("%.0f", b.IYABytesPerOp),
+				fmt.Sprintf("%.0f", b.RHELBytesPerOp),
+				bestBytes,
+				fmt.Sprintf("%.0f", b.DebianAllocsPerOp),
+				fmt.Sprintf("%.0f", b.IYAAllocsPerOp),
+				fmt.Sprintf("%.0f", b.RHELAllocsPerOp),
+				bestAllocs,
 			}
 			writer.Write(row)
 		}
