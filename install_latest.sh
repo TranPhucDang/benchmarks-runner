@@ -90,7 +90,7 @@ cd goroot/src # clone repo already in goroot
 # *** You need to add /root/go-install/goroot/bin to your PATH. ***
 cd ../..
 # Set GOROOT and update PATH
-export GOROOT=/root/go-install/goroo
+export GOROOT=/root/go-install/goroot
 export PATH=$GOROOT/bin:$PATH
 go version
 
