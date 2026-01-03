@@ -15,6 +15,26 @@ cd ~/benchmark-project
 #sudo apt update
 #sudo apt install -y openjdk-21-jdk maven
 
+
+# Download JDK 21
+wget https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz
+
+# Extract to /usr/local/ (requires sudo)
+sudo tar -xzf jdk-21_linux-x64_bin.tar.gz -C /usr/local/
+
+# Find the exact extracted directory name (it includes the version number)
+JDK_DIR=$(ls -d /usr/local/jdk-21* | head -n 1)
+
+# Add to .bashrc
+echo "export JAVA_HOME=$JDK_DIR" >> ~/.bashrc
+echo 'export PATH=$PATH:$JAVA_HOME/bin' >> ~/.bashrc
+
+# Apply changes
+source ~/.bashrc
+
+# Verify installation
+java -version
+
 # Option 2: Download directly from Oracle/OpenJDK (if repo doesn't have JDK 21)
 wget https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz
 tar -xzf jdk-21_linux-x64_bin.tar.gz -C /usr/local/
